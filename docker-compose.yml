@@ -1,0 +1,22 @@
+version: '2'
+
+services:
+  db:
+    image: mongo
+    volumes:
+      - .:/db
+    ports:
+      - "27017:27017"
+  flask:
+    build:
+      context: .
+      dockerfile: ./dockerfiles/flask.dockerfile
+    command: flask run --host=0.0.0.0
+    environment:
+      FLASK_APP: /app/main.py
+    volumes:
+      - .:/app
+    ports:
+      - "80:5000"
+    depends_on:
+      - db

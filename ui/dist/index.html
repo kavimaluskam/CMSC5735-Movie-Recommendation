@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <link href='https://fonts.googleapis.com/css?family=Roboto:300,400,500,700|Material+Icons' rel="stylesheet">
+    <link href="https://unpkg.com/vuetify/dist/vuetify.min.css" rel="stylesheet">
+    <meta charset="UTF-8">
+    <title>Netflix Movie Recommendation</title>
+</head>
+
+<body>
+    <div id="app">
+        <v-app>
+            <v-toolbar app color="black" app absolute clipped-left>
+                <span class="title ml-3 mr-5 red--text">Netflix Movie Recommendation</span>
+            </v-toolbar>
+            <v-content>
+                <div v-if="modelLoading" v-bind:style="{marginTop: '-15px'}">
+                    <v-progress-linear indeterminate color="red"></v-progress-linear>
+                </div>
+                <v-container fluid>
+                    <div v-if="modelLoading">
+                        Initializing spark models for recommendations...
+                    </div>
+                    <div v-else>
+                        <v-card>
+                            <v-tabs fixed-tabs slider-color="red" v-model="selectedTab">
+                                <v-tab class="red--text">Content Based Approach</v-tab>
+                                <v-tab class="red--text">Collaborative Filtering</v-tab>
+                            </v-tabs>
+                        </v-card>
+                        <br/>
+
+                        <v-tabs-items v-model="selectedTab">
+                            <v-tab-item id="0">
+                                <v-card v-bind:style="{padding: '20px'}">
+                                    <v-select label="Choose a movie" autocomplete :loading="loading" cache-items :items="movieNames" :search-input.sync="search"
+                                        v-model="selectedMovie" @select="onMovieSelect"></v-select>
+                                </v-card>
+                                <br/>
+                                <div v-if="selectedMovie">
+                                    <v-card>
+                                        <v-list>
+                                            <v-subheader>Movie Name</v-subheader>
+                                            <v-list-tile>
+                                                <v-list-tile-content>
+                                                    <v-list-tile-title>{{ selectedMovie }}</v-list-tile-title>
+                                                </v-list-tile-content>
+                                            </v-list-tile>
+                                        </v-list>
+                                        <div v-if="recommendationLoading">
+                                            <v-progress-linear indeterminate color="red"></v-progress-linear>
+                                        </div>
+                                        <div v-else>
+                                            <v-divider></v-divider>
+                                            <div v-if="recommendations.length > 0">
+                                                <v-list two-line subheader>
+                                                    <v-subheader>Top Recommendations</v-subheader>
+                                                    <v-list-tile v-for="(recommendation, index) in recommendations" :key="recommendation.movie_id">
+                                                        <v-avatar v-bind:style="{ marginRight: '20px' }" class="red">
+                                                            <span class="white--text headline">{{ index + 1}}</span>
+                                                        </v-avatar>
+                                                        <v-list-tile-content>
+                                                            <v-list-tile-title>{{ recommendation.movie_name }} ({{ recommendation.movie_year
+                                                                }})
+                                                            </v-list-tile-title>
+                                                            <v-list-tile-sub-title>Similarity Score: {{ recommendation.similarity.toFixed(2) }}
+                                                            </v-list-tile-sub-title>
+                                                        </v-list-tile-content>
+                                                    </v-list-tile>
+                                                </v-list>
+                                            </div>
+                                            <div v-else>
+                                                <v-list>
+                                                    <v-list-tile>
+                                                        <v-list-tile-content>
+                                                            <v-list-tile-title>No recommendations for this movie.</v-list-tile-title>
+                                                        </v-list-tile-content>
+                                                    </v-list-tile>
+                                                </v-list>
+                                            </div>
+                                        </div>
+                                    </v-card>
+                                </div>
+                            </v-tab-item>
+                            <v-tab-item id="1">
+                                <v-card v-bind:style="{padding: '20px'}">
+                                    <v-select label="Choose a user (for simplicity only 10 users are shown)" :items="users" v-model="selectedUser" @change="onUserSelect"></v-select>
+                                </v-card>
+                                <div v-if="selectedUser">
+                                    <v-card>
+                                        <v-list>
+                                            <v-subheader>User ID</v-subheader>
+                                            <v-list-tile>
+                                                <v-list-tile-content>
+                                                    <v-list-tile-title>{{ selectedUser }}</v-list-tile-title>
+                                                </v-list-tile-content>
+                                            </v-list-tile>
+                                        </v-list>
+                                        <div v-if="userLoading">
+                                            <v-progress-linear indeterminate color="red"></v-progress-linear>
+                                        </div>
+                                        <div v-else>
+                                            <v-divider></v-divider>
+                                            <div v-if="colRecommendations.length > 0">
+                                                <v-list two-line subheader>
+                                                    <v-subheader>Top Recommendations</v-subheader>
+                                                    <v-list-tile v-for="(recommendation, index) in colRecommendations" :key="recommendation.movie_id">
+                                                        <v-avatar v-bind:style="{ marginRight: '20px' }" class="red">
+                                                            <span class="white--text headline">{{ index + 1}}</span>
+                                                        </v-avatar>
+                                                        <v-list-tile-content>
+                                                            <v-list-tile-title>{{ recommendation.movie_name }} ({{ recommendation.movie_year
+                                                                }})
+                                                            </v-list-tile-title>
+                                                            <v-list-tile-sub-title>Similarity Score: {{ recommendation.rating.toFixed(2) }}
+                                                            </v-list-tile-sub-title>
+                                                        </v-list-tile-content>
+                                                    </v-list-tile>
+                                                </v-list>
+                                            </div>
+                                            <div v-else>
+                                                <v-list>
+                                                    <v-list-tile>
+                                                        <v-list-tile-content>
+                                                            <v-list-tile-title>No recommendations for this movie.</v-list-tile-title>
+                                                        </v-list-tile-content>
+                                                    </v-list-tile>
+                                                </v-list>
+                                            </div>
+                                        </div>
+                                    </v-card>
+                                </div>
+                            </v-tab-item>
+                        </v-tabs-items>
+                    </div>
+                </v-container>
+            </v-content>
+        </v-app>
+    </div>
+    <script src="/static/bundle.js"></script>
+
+    <!-- <script src="https://unpkg.com/vue/dist/vue.js"></script>
+    <script src="https://unpkg.com/vuetify/dist/vuetify.js"></script>
+    <script>
+        new Vue({
+            el: '#app',
+            data() {
+                return {
+                    colRecommendations: [],
+                    loading: false,
+                    modelLoading: true,
+                    movies: [],
+                    movieNames: [],
+                    recommendations: [],
+                    recommendationLoading: false,
+                    search: null,
+                    selectedMovie: null,
+                    selectedTab: 0,
+                    selectedUser: null,
+                    userLoading: false,
+                    users: [
+                        // '919106',
+                        // '1182575',
+                        '387418',
+                        '305344',
+                        '2439493',
+                        '1664010',
+                        '2118461',
+                        '1314869',
+                        '1932594',
+                        '1639792',
+                        '2056022',
+                        '1461435',
+                    ],
+                }
+            },
+            watch: {
+                search(queryString) {
+                    queryString && this.searchMovies(queryString)
+                }
+            },
+            beforeMount() {
+                this.onMount()
+            },
+            methods: {
+                onMount() {
+                    setTimeout(
+                        () => {
+                            this.modelLoading = false;
+                        },
+                        5000
+                    );
+                },
+                onMovieSelect(event) {
+                    event.preventDefault();
+                    const movieName = event.target.value;
+                    const movieObject = this.movies.filter(item => item.movie_name === movieName)[0];
+                    if (movieObject) {
+                        const movieId = movieObject && movieObject.movie_id;
+                        this.recommendationLoading = true;
+                        fetch(`/search_similar/${movieId}`)
+                            .then((response) => response.json())
+                            .then((json) => {
+                                this.recommendations = json;
+                                this.recommendationLoading = false;
+                            })
+                            .catch((err) => {
+                                this.error = err;
+                                // TODO error handling, e.g. show msg in UI?
+                            });
+                    }
+                },
+                onUserSelect(userId) {
+                    this.userLoading = true;
+                    fetch(`/get_products/${userId}`)
+                        .then((response) => response.json())
+                        .then((json) => {
+                            this.colRecommendations = json;
+                            this.userLoading = false;
+                        })
+                        .catch((err) => {
+                            this.error = err;
+                            this.userLoading = false;
+                            // TODO error handling, e.g. show msg in UI?
+                        });
+                },
+                searchMovies(queryString) {
+                    this.loading = true;
+                    fetch(`/search/${queryString}`)
+                        .then((response) => response.json())
+                        .then((json) => {
+                            this.movies = json;
+                            this.movieNames = json.map(item => item.movie_name);
+                            this.loading = false;
+                        })
+                        .catch((err) => {
+                            this.error = err;
+                            this.loading = false;
+                            // TODO error handling, e.g. show msg in UI?
+                        });
+                }
+            },
+        })
+    </script> -->
+</body>
+
+</html>
